@@ -5,7 +5,7 @@ const connection = mysql.createConnection({
   port: 3306,
   user: 'user',
   password: '321Flash!',
-  database: 'express'
+  database: 'music'
 })
 
 connection.connect()

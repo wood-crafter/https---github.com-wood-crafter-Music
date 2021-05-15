@@ -4,7 +4,7 @@ const connection = db.getConnection()
 const idExists = (id) => {
   return new Promise((resolve, reject) => {
     connection.query('SELECT * FROM user WHERE id = ?', id, (e, results, fields) => {
-      if(e){
+      if (e) {
         reject(e)
       } else {
         resolve(results.length > 0)
@@ -43,7 +43,7 @@ const findByUsername = (username) => {
       if (e) {
         reject(e)
       } else {
-        resolve(result)
+        resolve(result[0])
       }
     })
   })
