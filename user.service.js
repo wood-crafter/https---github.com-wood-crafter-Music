@@ -49,9 +49,27 @@ const findByUsername = (username) => {
   })
 }
 
+const addOne = (username, password) => {
+  let user = {
+    username: username,
+    password: password
+  }
+
+  return new Promise((resolve, reject) => {
+    connection.query('INSERT INTO user SET ?', user, (e, result, fields) => {
+      if (e) {
+        reject(e)
+      } else {
+        resolve(result)
+      }
+    })
+  })
+}
+
 module.exports = {
   findAll,
   findOne,
   idExists,
   findByUsername,
+  addOne,
 }

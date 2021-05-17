@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "busboy": "^0.3.1",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "jsonwebtoken": "^8.5.1",
+    "mime-types": "^2.1.30",
     "mysql": "^2.18.1"
   },
   "devDependencies": {},
