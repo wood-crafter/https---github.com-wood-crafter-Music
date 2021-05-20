@@ -2,10 +2,9 @@ const fs = require('fs')
 const path = require('path')
 const express = require('express')
 const cors = require('cors')
-const bodyParser = require('body-parser')
 const usersService = require('./user.service')
 const songsService = require('./song.service')
-const { resolve } = require('path')
+const playlistService = require('./playlist.service')
 const jwt = require('jsonwebtoken')
 const Busboy = require('busboy')
 const mime = require('mime-types')
@@ -13,7 +12,7 @@ const mime = require('mime-types')
 const SECRET_KEY = 'HuckFitler'
 const app = express()
 app.use(cors())
-app.use(bodyParser.json())
+app.use(express.json())
 
 const readFileName = () => {
   return new Promise((resolve, reject) => {
@@ -107,18 +106,10 @@ app.head('/auth', (req, res) => {
       res.sendStatus(401)
       return
     }
-    console.log(payload)
     res.sendStatus(200)
   })
 })
 
-// app.post('/upload', (req, res) => {
-//   req.pipe(fs.createWriteStream('public/1.mp3'))
-//     .once('close', () => {
-//       console.info('Upload ok babe!')
-//       res.sendStatus(200)
-//     })
-// })
 
 app.post('/upload', (req, res) => {
   let songName = ''
@@ -128,13 +119,16 @@ app.post('/upload', (req, res) => {
   busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated) {
     if (fieldname === 'songName') {
       songName = val
+      console.info(songName)
     }
   })
 
   busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
     type = mime.extension(mimetype)
-    if(!songName){
+    console.info(type)
+    if (!songName) {
       res.sendStatus(400)
+      // return
     }
     file.pipe(fs.createWriteStream(`public/${songName}.${type}`))
     console.log(`File [${fieldname}]: filename:  ${filename} - encoding: ${encoding} - mimetype: ${mime.extension(mimetype)}`)
@@ -147,7 +141,19 @@ app.post('/upload', (req, res) => {
   })
 
   busboy.on('finish', function () {
-    res.sendStatus(200)
+    songsService.addOne(songName)
+      .then(results => {
+        return songsService.getLastest()
+      })
+      .then(result => {
+        fs.renameSync(`public/${songName}.${type}`, `public/${result[0].id}.${type}`)
+        res.sendStatus(200)
+      })
+      .catch(e => {
+        console.error(e)
+        res.sendStatus(400)
+      })
+
   })
 
   req.pipe(busboy)
@@ -166,6 +172,137 @@ app.get('/public/:filename', (req, res) => {
     res.download(filePath)
   })
 })
+
+app.get('/public/songName/:songId', (req, res) => {
+  const songId = req.params.songId
+
+  songsService.get(songId)
+    .then(result => {
+      res.send(result[0].name)
+    })
+})
+
+app.post('/playlist/song', (req, res) => {
+  const song = req.body
+
+  playlistService.addSong(song.song_id, song.playlist_id)
+    .then(status => {
+      res.sendStatus(200)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+
+app.post('/playlist/thisSong', (req, res) => {
+  const body = req.body
+  const authHeader = req.headers.authorization
+  const token = authHeader.substring('Bearer '.length)
+
+  if (!token) {
+    res.sendStatus(401)
+  }
+
+  verifyJwt(token)
+    .then(payload => {
+      return usersService.findByUsername(payload.username)
+    })
+    .then(result => {
+      return playlistService.addOne(result.id, body.title)
+    })
+    .then(result => {
+      return playlistService.getLastest()
+    })
+    .then(result => {
+      playlistService.addSong(body.songId, result)
+      res.sendStatus(200)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+app.delete('/playlist/song', (req, res) => {
+  const song = req.body
+
+  playlistService.removeSong(song.song_id, song.playlist_id)
+    .then(status => {
+      res.sendStatus(200)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+app.get('/playlist/getAllSong', (req, res) => {
+  const body = req.body
+
+  playlistService.getAllSong(body.playlistId)
+    .then(result => {
+      res.send(result)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+app.post('/playlist_containSong', (req, res) => {
+  const body = req.body
+
+  playlistService.isPlaylistContainSong(body.songId, body.playlistId)
+    .then(result => {
+      res.send(result)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+app.get('/playlist_getAll', (req, res) => {
+  const authHeader = req.headers.authorization
+  const token = authHeader.substring('Bearer '.length)
+
+  if (!token) {
+    res.sendStatus(401)
+  }
+
+  verifyJwt(token)
+    .then(payload => {
+      return findAllPlaylist(payload.username)
+    })
+    .then(result => {
+      res.send(result)
+    })
+    .catch(e => {
+      console.error(e)
+      res.sendStatus(400)
+    })
+})
+
+function verifyJwt(token) {
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, SECRET_KEY, (err, payload) => {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(payload)
+      }
+    })
+  })
+}
+
+function findAllPlaylist(username) {
+  return usersService.findByUsername(username).then(res => {
+    const userId = res.id
+    return playlistService.getAll(userId)
+  })
+}
 
 const PORT = 8082
 app.listen(PORT, () => {
